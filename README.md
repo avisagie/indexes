@@ -41,4 +41,11 @@ This first experiment is to see how fast it works for both operations.
 
 May it amuse.
 
+Check out [indexes/index.go](https://github.com/avisagie/indexes/blob/master/index.go) for the intended interface and [indexes/btree/testbig/main.go](https://github.com/avisagie/indexes/blob/master/btree/testbig/main.go) for some usage.
 
+Notes:
+* The values are not yet in the pages. Rather, they live on the go heap. Profiling shows the go tip (heading for 1.3) does not spend too much of its time in GC or allocation. Rather, readKey is the hottest method, and that's purely go being all weird and memory safe. Perhaps some unsafe magic or assembler might save it.
+* The Pager interface needs a Write method and Btree needs to call it every now and then if this is ever to make it to disk.
+* Should make page size configurable. It has a huge impact on performance in the in-memory case, and will on disk, but probably with different values.
+* I've so far done only one experiment for comparison, using the cloudlfare fork of tokyo cabinet in the indexes/tc directory. It is a bit of a dud due to the cast to string of []byte, but it is still a lot faster. Go figure. Could not yet figure out whether tokyo cabinet does the right thing with in-order inserts. I guess it is a bit of a fringe case.
+* The in RAM insert compares ok with RocksDB's [benchmarks](https://github.com/facebook/rocksdb/wiki/Performance-Benchmarks) on random insert. Which is not encouraging for continuing with these experiments, especially in light of these [go bindings for RockDB](https://github.com/alberts/gorocks)
