@@ -343,7 +343,7 @@ func (r *inplacePager) Stats() BtreeStats {
 	for _, p := range r.pages {
 		if p != nil {
 			ret.finds += p.finds
-			ret.comparisons += ret.comparisons
+			ret.comparisons += p.comparisons
 		}
 	}
 	return ret
