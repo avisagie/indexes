@@ -5,12 +5,12 @@ package indexes
 type Iter interface {
 	// return consecutive keys and values. ok is false (key abd
 	// value are nil) when done.
-	Next() (ok bool, key []byte, value []byte)
+	Next() (key []byte, value []byte, ok bool)
 }
 
 // Read-only index
 type ROIndex interface {
-	Get(key []byte) (ok bool, value []byte)
+	Get(key []byte) (value []byte, ok bool)
 	Start(keyPrefix []byte) Iter
 	Size() int64
 }

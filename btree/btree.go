@@ -26,14 +26,14 @@ type btreeIter struct {
 	done     bool
 }
 
-func (i *btreeIter) Next() (ok bool, key []byte, value []byte) {
+func (i *btreeIter) Next() (key []byte, value []byte, ok bool) {
 	if i.done {
 		return
 	}
 
-	ok, key, ref := i.pageIter.Next()
+	key, ref, ok := i.pageIter.Next()
 	if ok {
-		return ok, key, i.b.values[ref]
+		return key, i.b.values[ref], ok
 	}
 
 	// !ok can mean we're done iterating or that we're at the end
@@ -48,12 +48,12 @@ func (i *btreeIter) Next() (ok bool, key []byte, value []byte) {
 
 	i.page = i.b.pager.Get(n)
 	i.pageIter = i.page.Start(i.prefix)
-	ok, key, ref = i.pageIter.Next()
+	key, ref, ok = i.pageIter.Next()
 	if !ok {
 		i.done = true
 		return
 	}
-	return ok, key, i.b.values[ref]
+	return key, i.b.values[ref], ok
 }
 
 func NewInMemoryBtree() indexes.Index {
@@ -70,7 +70,7 @@ func NewInMemoryBtree() indexes.Index {
 	return bt
 }
 
-func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
+func (b *Btree) search(key []byte) (k Key, pageRefs []int, ok bool) {
 	pageRefs = make([]int, 0, 8)
 	ref := b.root
 
@@ -80,7 +80,7 @@ func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
 
 	for {
 		p := b.pager.Get(ref)
-		ok, k = p.Search(key)
+		k, ok = p.Search(key)
 		ref = k.Ref()
 
 		// if it is a leaf, we're done
@@ -94,12 +94,12 @@ func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
 	return
 }
 
-func (b *Btree) Get(key []byte) (ok bool, value []byte) {
+func (b *Btree) Get(key []byte) (value []byte, ok bool) {
 	if len(key) == 0 {
 		panic("Illegal key nil")
 	}
 
-	ok, k, _ := b.search(key)
+	k, _, ok := b.search(key)
 	if ok {
 		value = b.values[k.Ref()]
 	}
@@ -108,7 +108,7 @@ func (b *Btree) Get(key []byte) (ok bool, value []byte) {
 }
 
 func (b *Btree) Start(prefix []byte) (it indexes.Iter) {
-	_, _, pageRefs := b.search(prefix)
+	_, pageRefs, _ := b.search(prefix)
 
 	ref := pageRefs[len(pageRefs)-1]
 	page := b.pager.Get(ref)
@@ -161,7 +161,7 @@ func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
 		panic("Illegal nil key or value")
 	}
 
-	replaced, k, pageRefs := b.search(key)
+	k, pageRefs, replaced := b.search(key)
 	if replaced {
 		// Overwrite the old value
 		b.values[k.Ref()] = append(b.values[k.Ref()][:0], valuev...)
@@ -192,7 +192,7 @@ func (b *Btree) Append(key []byte, value []byte) {
 		panic("Illegal nil key or value")
 	}
 
-	ok, k, _ := b.search(key)
+	k, _, ok := b.search(key)
 	if ok {
 		b.values[k.Ref()] = append(b.values[k.Ref()], value...)
 	} else {
@@ -254,7 +254,7 @@ func (b *Btree) CheckConsistency() error {
 	iter := b.Start([]byte{})
 	prev := []byte{}
 	for {
-		ok, k, _ := iter.Next()
+		k, _, ok := iter.Next()
 		if !ok {
 			break
 		}

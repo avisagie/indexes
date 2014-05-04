@@ -46,18 +46,18 @@ type inplacePageIter struct {
 	p      *inplacePage
 }
 
-func (i *inplacePageIter) Next() (ok bool, key []byte, ref int) {
+func (i *inplacePageIter) Next() (key []byte, ref int, ok bool) {
 	if i.pos >= len(i.p.offsets) {
 		return
 	}
 	key, ref = i.p.readKey(i.pos)
 	if !prefixMatches(key, i.prefix) {
-		return false, nil, -1
+		return nil, -1, false
 	}
 
 	i.pos += 1
 
-	return true, key, ref
+	return key, ref, true
 }
 
 type keyRef struct {
@@ -179,14 +179,14 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 	return true
 }
 
-func (p *inplacePage) Search(key []byte) (ok bool, k Key) {
+func (p *inplacePage) Search(key []byte) (k Key, ok bool) {
 	pos := p.find(key)
 	if pos == len(p.offsets) {
 		// key is greater than the last key in this page.
 		if !p.isLeaf {
-			return false, newKeyRef(p.readKey(pos - 1))
+			return newKeyRef(p.readKey(pos - 1)), false
 		}
-		return false, nilKeyRef
+		return nilKeyRef, false
 	}
 
 	k = newKeyRef(p.readKey(pos))

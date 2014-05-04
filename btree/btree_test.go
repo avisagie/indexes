@@ -41,7 +41,7 @@ func TestKeys(t *testing.T) {
 
 func TestBtreeSearchEmpty(t *testing.T) {
 	index := NewInMemoryBtree()
-	ok, value := index.Get([]byte{1, 2, 3})
+	value, ok := index.Get([]byte{1, 2, 3})
 	if ok {
 		t.Error("Did not expect to find anything")
 	}
@@ -55,7 +55,7 @@ func TestBtreeSearchEmpty(t *testing.T) {
 
 func TestBtreeInsert1(t *testing.T) {
 	index := NewInMemoryBtree()
-	ok, value := index.Get([]byte{1, 2, 3})
+	value, ok := index.Get([]byte{1, 2, 3})
 	if ok {
 		t.Fatal("Did not expect to find anything")
 	}
@@ -69,7 +69,7 @@ func TestBtreeInsert1(t *testing.T) {
 		t.Fatal("Empty btree, could not have inserted anything")
 	}
 
-	ok, value = index.Get([]byte{1, 2, 3})
+	value, ok = index.Get([]byte{1, 2, 3})
 	if !ok {
 		t.Fatal("Expected to find it", index)
 	}
@@ -77,7 +77,7 @@ func TestBtreeInsert1(t *testing.T) {
 		t.Fatal("Got wrong value out")
 	}
 
-	ok, value = index.Get([]byte{5})
+	value, ok = index.Get([]byte{5})
 	if ok {
 		t.Fatal("Did not expect to find anything")
 	}
@@ -95,7 +95,7 @@ func TestBtreeInsert1(t *testing.T) {
 		t.Fatal("Expected it to NOT have been replaced")
 	}
 
-	ok, value = index.Get([]byte{1, 2, 3})
+	value, ok = index.Get([]byte{1, 2, 3})
 	if !ok {
 		t.Fatal("Expected to find it")
 	}
@@ -103,7 +103,7 @@ func TestBtreeInsert1(t *testing.T) {
 		t.Fatal("Got wrong value out")
 	}
 
-	ok, value = index.Get([]byte{5})
+	value, ok = index.Get([]byte{5})
 	if ok {
 		t.Fatal("Did not expect to find anything")
 	}
@@ -120,7 +120,7 @@ func TestBtreeAppend(t *testing.T) {
 	index.Put([]byte{1, 2, 1}, []byte{6, 5, 4})
 	index.Append([]byte{1, 2, 3}, []byte{7, 8, 9})
 
-	ok, value := index.Get([]byte{1, 2, 3})
+	value, ok := index.Get([]byte{1, 2, 3})
 	expected := []byte{4, 5, 6, 7, 8, 9}
 	if !ok || bytes.Compare(value, expected) != 0 {
 		t.Fatal("Expected", expected, ", got", ok, value)
@@ -135,7 +135,7 @@ func TestBtreeAppend(t *testing.T) {
 
 func TestBtreeOverride(t *testing.T) {
 	index := NewInMemoryBtree()
-	ok, value := index.Get([]byte{1, 2, 3})
+	value, ok := index.Get([]byte{1, 2, 3})
 	if ok {
 		t.Fatal("Did not expect to find anything")
 	}
@@ -174,7 +174,7 @@ func TestShortIter(t *testing.T) {
 	count := 0
 	it := index.Start([]byte{1, 2})
 	for {
-		ok, k, v := it.Next()
+		k, v, ok := it.Next()
 		if !ok {
 			break
 		}
@@ -189,7 +189,7 @@ func TestShortIter(t *testing.T) {
 	count = 0
 	it = index.Start([]byte{2})
 	for {
-		ok, k, v := it.Next()
+		k, v, ok := it.Next()
 		if !ok {
 			break
 		}
@@ -204,7 +204,7 @@ func TestShortIter(t *testing.T) {
 	count = 0
 	it = index.Start([]byte{1, 2, 5})
 	for {
-		ok, k, v := it.Next()
+		k, v, ok := it.Next()
 		if !ok {
 			break
 		}
@@ -217,7 +217,7 @@ func TestShortIter(t *testing.T) {
 
 	for ii := 0; ii < 100; ii++ {
 		// After iteration it must remain in the done state and not do anything else
-		ok, k, v := it.Next()
+		k, v, ok := it.Next()
 		if ok || k != nil || v != nil {
 			t.Fatal(ok, k, v)
 		}
@@ -253,7 +253,7 @@ func fill(t *testing.T, index indexes.Index) (keys [][]byte) {
 	//	}
 
 	for _, k := range keys {
-		ok, v := index.Get(k)
+		v, ok := index.Get(k)
 		if !ok || bytes.Compare(k, v) != 0 {
 			t.Fatal("Expected", k, "got", v)
 		}
@@ -275,7 +275,7 @@ func TestLarger(t *testing.T) {
 	iter := index.Start([]byte{})
 	prev := []byte{}
 	for {
-		ok, k, v := iter.Next()
+		k, v, ok := iter.Next()
 		if !ok {
 			break
 		}
@@ -299,7 +299,7 @@ func TestIteration2(t *testing.T) {
 
 	iter := index.Start([]byte{4})
 	for {
-		ok, k, v := iter.Next()
+		k, v, ok := iter.Next()
 		if !ok {
 			break
 		}
@@ -319,7 +319,7 @@ func TestBulk(t *testing.T) {
 
 	iter := index1.Start([]byte{})
 	for {
-		ok, k, v := iter.Next()
+		k, v, ok := iter.Next()
 		if !ok {
 			break
 		}
@@ -333,8 +333,8 @@ func TestBulk(t *testing.T) {
 	iter1 := index1.Start([]byte{})
 	iter2 := index2.Start([]byte{})
 	for count := 1; ; count++ {
-		ok1, k1, v1 := iter1.Next()
-		ok2, k2, v2 := iter2.Next()
+		k1, v1, ok1 := iter1.Next()
+		k2, v2, ok2 := iter2.Next()
 
 		if ok1 != ok2 || bytes.Compare(k1, k2) != 0 || bytes.Compare(v1, v2) != 0 {
 			t.Fatal("Not the same:", ok1, ok2, k1, k2, v1, v2)
