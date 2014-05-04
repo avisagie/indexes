@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/gpaul/indexes"
+	"github.com/avisagie/indexes"
 )
 
 func TestBtreeCreate(t *testing.T) {
@@ -238,7 +238,7 @@ func fill(t *testing.T, index indexes.Index) (keys [][]byte) {
 	}
 
 	// randomize ish
-	for i, _ := range keys {
+	for i := range keys {
 		j := rand.Int31n(int32(len(keys)))
 		keys[i], keys[j] = keys[j], keys[i]
 	}

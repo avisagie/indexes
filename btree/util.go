@@ -27,4 +27,3 @@ func writeInt32(data []byte, offset int, i int32) {
 	data[offset+2] = byte((i >> 16) & 0xFF)
 	data[offset+3] = byte((i >> 24) & 0xFF)
 }
-

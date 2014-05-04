@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gpaul/indexes"
+	"github.com/avisagie/indexes"
 )
 
 // B+ Tree. Consists of pages. Satisfies indexes.Index.
@@ -57,15 +57,17 @@ func (i *btreeIter) Next() (ok bool, key []byte, value []byte) {
 }
 
 func NewInMemoryBtree() indexes.Index {
-	ret := &Btree{newInplacePager(), make([][]byte, 0), 0, 0}
+	bt := &Btree{newInplacePager(), make([][]byte, 0), 0, 0}
 
-	ref, root := ret.pager.New(false)
-	ret.root = ref
+	const internalNode = false
+	ref, root := bt.pager.New(internalNode)
+	bt.root = ref
 
-	ref, _ = ret.pager.New(true)
+	const leafNode = true
+	ref, _ = bt.pager.New(leafNode)
 	root.SetFirst(ref)
 
-	return ret
+	return bt
 }
 
 func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
