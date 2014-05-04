@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/avisagie/indexes"
+	"github.com/gpaul/indexes"
 )
 
 func TestBtreeCreate(t *testing.T) {

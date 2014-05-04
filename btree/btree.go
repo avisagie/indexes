@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/avisagie/indexes"
+	"github.com/gpaul/indexes"
 )
 
 // B+ Tree. Consists of pages. Satisfies indexes.Index.
