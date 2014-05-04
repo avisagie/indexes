@@ -178,12 +178,8 @@ func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
 	if !ok {
 		b.split(key, vref, pageRefs)
 	}
-
-	b.values = append(b.values, []byte{})
-	b.values[vref] = append(b.values[vref], value...)
-
+	b.values = append(b.values, value)
 	b.size++
-
 	return
 }
 
