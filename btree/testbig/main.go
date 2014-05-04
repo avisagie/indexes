@@ -22,7 +22,7 @@ func printMem() {
 }
 
 const (
-	N          = 10000000
+	N          = 1000000
 	spotCheckN = 10000
 )
 
@@ -33,7 +33,7 @@ func spotCheck(index indexes.Index) {
 		x := rand.Int63n(N)
 		binary.Write(buf, binary.LittleEndian, x)
 		k := buf.Bytes()
-		ok, v := index.Get(k)
+		v, ok := index.Get(k)
 		if !ok || bytes.Compare(v, k) != 0 {
 			fmt.Println("bad:", ok, k, v)
 		}
@@ -92,7 +92,7 @@ func main() {
 	index2 := btree.NewInMemoryBtree().(*btree.Btree)
 	iter := index.Start([]byte{})
 	for {
-		ok, k, v := iter.Next()
+		k, v, ok := iter.Next()
 		if !ok {
 			break
 		}
