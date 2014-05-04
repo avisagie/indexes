@@ -95,7 +95,7 @@ func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
 }
 
 func (b *Btree) Get(key []byte) (ok bool, value []byte) {
-	if key == nil || len(key) == 0 {
+	if len(key) == 0 {
 		panic("Illegal key nil")
 	}
 
@@ -108,10 +108,6 @@ func (b *Btree) Get(key []byte) (ok bool, value []byte) {
 }
 
 func (b *Btree) Start(prefix []byte) (it indexes.Iter) {
-	if prefix == nil {
-		panic("Illegal key nil")
-	}
-
 	_, _, pageRefs := b.search(prefix)
 
 	ref := pageRefs[len(pageRefs)-1]
@@ -161,7 +157,7 @@ func (b *Btree) split(key []byte, ref int, pageRefs []int) {
 }
 
 func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
-	if key == nil || len(key) == 0 || valuev == nil {
+	if len(key) == 0 || len(valuev) == 0 {
 		panic("Illegal nil key or value")
 	}
 
@@ -192,7 +188,7 @@ func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
 }
 
 func (b *Btree) Append(key []byte, value []byte) {
-	if key == nil || len(key) == 0 || value == nil {
+	if len(key) == 0 || len(value) == 0 {
 		panic("Illegal nil key or value")
 	}
 
@@ -200,7 +196,7 @@ func (b *Btree) Append(key []byte, value []byte) {
 	if ok {
 		b.values[k.Ref()] = append(b.values[k.Ref()], value...)
 	} else {
-		if b.Put(key, value) {
+		if replaced := b.Put(key, value); replaced {
 			panic("Did not expect to have to replace the value")
 		}
 	}
@@ -219,7 +215,7 @@ func (b *Btree) checkPage(page Page, checkMinKey bool, minKey []byte, ref int, d
 		for i := 0; i < page.Size(); i++ {
 			k, r := page.GetKey(i)
 			if !keyLess(prev, k) {
-				return fmt.Errorf("Expect strict ordering, got violation %v >= %v", prev, k)
+				return fmt.Errorf("expect strict ordering, got violation %v >= %v", prev, k)
 			}
 			if r < 0 {
 				return fmt.Errorf("value reference cannot be < 0")
@@ -229,15 +225,15 @@ func (b *Btree) checkPage(page Page, checkMinKey bool, minKey []byte, ref int, d
 	} else {
 		prevk, prevr := page.GetKey(0)
 		if prevr == -1 && page.Size() > 1 {
-			return fmt.Errorf("Expected internal node to refer to other pages")
+			return fmt.Errorf("expected internal node to refer to other pages")
 		}
 		for i := 1; i < page.Size(); i++ {
 			k, r := page.GetKey(i)
 			if checkMinKey && !keyLess(minKey, k) {
-				return fmt.Errorf("Expect parent key to be smaller or equal to all in referred to child page: got violation %v >= %v", prevk, minKey)
+				return fmt.Errorf("expect parent key to be smaller or equal to all in referred to child page: got violation %v >= %v", prevk, minKey)
 			}
 			if !keyLess(prevk, k) {
-				return fmt.Errorf("Expect strict ordering, got violation %v >= %v", prevk, k)
+				return fmt.Errorf("expect strict ordering, got violation %v >= %v", prevk, k)
 			}
 			if r < 0 {
 				return fmt.Errorf("value reference cannot be < 0")
@@ -262,17 +258,17 @@ func (b *Btree) CheckConsistency() error {
 		if !ok {
 			break
 		}
-		if k == nil || len(k) == 0 {
-			return fmt.Errorf("Got empty key %v", k)
+		if len(k) == 0 {
+			return fmt.Errorf("got empty key")
 		}
 		if !keyLess(prev, k) {
-			return fmt.Errorf("Expect strict ordering, got violation %v >= %v", prev, k)
+			return fmt.Errorf("expect strict ordering, got violation %v >= %v", prev, k)
 		}
 		count++
 	}
 
 	if count != b.Size() {
-		return fmt.Errorf("Expected %d, got %d", b.Size(), count)
+		return fmt.Errorf("expected %d, got %d", b.Size(), count)
 	}
 
 	root := b.pager.Get(b.root)
@@ -313,7 +309,7 @@ func (b *Btree) appendPage(key []byte, ref int, pageRefs []int) {
 // you're going to keep doing that and therefore does the bulk put
 // operation.
 func (b *Btree) PutNext(keyv, valuev []byte) {
-	if keyv == nil || len(keyv) == 0 || valuev == nil {
+	if len(keyv) == 0 || len(valuev) == 0 {
 		panic("Illegal nil key or value")
 	}
 

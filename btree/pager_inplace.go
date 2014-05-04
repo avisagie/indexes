@@ -190,8 +190,8 @@ func (p *inplacePage) Search(key []byte) (ok bool, k Key) {
 	}
 
 	k = newKeyRef(p.readKey(pos))
-	ok = bytes.Compare(key, k.Get()) == 0
-	if !ok && !p.isLeaf && bytes.Compare(key, k.Get()) < 0 { // keyLess(key, k.Get()) {
+	ok = bytes.Equal(key, k.Get())
+	if !ok && !p.isLeaf && keyLess(key, k.Get()) {
 		k = newKeyRef(p.readKey(pos - 1))
 	}
 	return
@@ -226,7 +226,7 @@ func (p *inplacePage) appendKey(key []byte, ref int) {
 }
 
 func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
-	//fmt.Println("Splitting")
+	// fmt.Println("Splitting")
 
 	newPage, ok := newPage1.(*inplacePage)
 	if !ok {
@@ -246,8 +246,10 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 	for ; i < len(p.r.scratchOffsets); i++ {
 		offset = p.r.scratchOffsets[i]
 		length := int(readInt32(p.r.scratchData, offset))
-		ref = int(readInt32(p.r.scratchData, offset+4))
-		key = p.r.scratchData[offset+8 : offset+8+length]
+		offset += 4
+		ref = int(readInt32(p.r.scratchData, offset))
+		offset += 4
+		key = p.r.scratchData[offset : offset+length]
 		if length+p.nextOffset > pageSize/2 {
 			break
 		}
@@ -267,8 +269,10 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 	for ; i < len(p.r.scratchOffsets); i++ {
 		offset = p.r.scratchOffsets[i]
 		length := int(readInt32(p.r.scratchData, offset))
-		ref = int(readInt32(p.r.scratchData, offset+4))
-		key = p.r.scratchData[offset+8 : offset+8+length]
+		offset += 4
+		ref = int(readInt32(p.r.scratchData, offset))
+		offset += 4
+		key = p.r.scratchData[offset : offset+length]
 		//fmt.Println(i, "Copying", offset, key, ref, "right to", p.nextOffset)
 		newPage.appendKey(key, ref)
 	}
@@ -284,7 +288,6 @@ func (p *inplacePage) SetFirst(ref int) {
 	if p.isLeaf {
 		panic("Not setting first on non-leaf node")
 	}
-
 	writeInt32(p.data, 4, int32(ref))
 }
 
@@ -301,7 +304,7 @@ type inplacePager struct {
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{make([]*inplacePage, 0), make([]int, 0), make([]byte, pageSize), make([]int, 32)}
+	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32)}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {
