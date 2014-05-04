@@ -3,6 +3,7 @@ package btree
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"testing"
 
@@ -266,15 +267,15 @@ func fill(t *testing.T, index indexes.Index) (keys [][]byte) {
 	return
 }
 
-func BenchmarkBulkLoad(b *testing.B) {
+func BenchmarkBulkLoadUnordered(b *testing.B) {
 	buffer := &bytes.Buffer{}
-	count := int32(0)
+	count := 0
 
 	index := NewInMemoryBtree()
 	keys := make([][]byte, 0)
 
-	for ; count < int32(30*pageSize/(4+4+4)+5); count++ {
-		binary.Write(buffer, binary.LittleEndian, count)
+	for ; count < b.N; count++ {
+		binary.Write(buffer, binary.LittleEndian, int32(count))
 		b := copyBytes(buffer.Bytes())
 		keys = append(keys, b)
 		buffer.Reset()
@@ -286,14 +287,32 @@ func BenchmarkBulkLoad(b *testing.B) {
 	}
 
 	b.ResetTimer()
-
-	// if b.N < 1e9 {
-	// 	b.N = 1e9
-	// }
 	for i := 0; i < b.N; i++ {
 		k := keys[i%len(keys)]
 		v := k
 		index.Put(k, v)
+	}
+}
+
+func BenchmarkBulkLoadOrdered(b *testing.B) {
+	buffer := &bytes.Buffer{}
+	count := 0
+
+	index := NewInMemoryBtree().(indexes.PutableInOrder)
+	keys := make([][]byte, 0)
+
+	for ; count < b.N; count++ {
+		binary.Write(buffer, binary.BigEndian, int32(count))
+		b := copyBytes(buffer.Bytes())
+		keys = append(keys, b)
+		buffer.Reset()
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		k := keys[i%len(keys)]
+		v := k
+		index.PutNext(k, v)
 	}
 }
 
