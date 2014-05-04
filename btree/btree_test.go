@@ -266,6 +266,37 @@ func fill(t *testing.T, index indexes.Index) (keys [][]byte) {
 	return
 }
 
+func BenchmarkBulkLoad(b *testing.B) {
+	buffer := &bytes.Buffer{}
+	count := int32(0)
+
+	index := NewInMemoryBtree()
+	keys := make([][]byte, 0)
+
+	for ; count < int32(30*pageSize/(4+4+4)+5); count++ {
+		binary.Write(buffer, binary.LittleEndian, count)
+		b := copyBytes(buffer.Bytes())
+		keys = append(keys, b)
+		buffer.Reset()
+	}
+
+	// randomize ish
+	for i, pos := range rand.Perm(len(keys)) {
+		keys[i], keys[pos] = keys[pos], keys[i]
+	}
+
+	b.ResetTimer()
+
+	// if b.N < 1e9 {
+	// 	b.N = 1e9
+	// }
+	for i := 0; i < b.N; i++ {
+		k := keys[i%len(keys)]
+		v := k
+		index.Put(k, v)
+	}
+}
+
 func TestLarger(t *testing.T) {
 	index := NewInMemoryBtree()
 	keys := fill(t, index)
