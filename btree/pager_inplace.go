@@ -55,7 +55,7 @@ func (i *inplacePageIter) Next() (key []byte, ref int, ok bool) {
 		return nil, -1, false
 	}
 
-	i.pos += 1
+	i.pos++
 
 	return key, ref, true
 }
@@ -100,7 +100,7 @@ func (p *inplacePage) find(key []byte) (pos int) {
 	pos = sort.Search(len(p.offsets), func(i int) bool {
 		p.comparisons++
 		k, _ := p.readKey(i)
-		return bytes.Compare(k, key) >= 0 // !keyLess(k, key)
+		return !keyLess(k, key)
 	})
 	p.finds++
 	return

@@ -57,7 +57,7 @@ func (i *btreeIter) Next() (key []byte, value []byte, ok bool) {
 }
 
 func NewInMemoryBtree() indexes.Index {
-	bt := &Btree{newInplacePager(), make([][]byte, 0), 0, 0}
+	bt := &Btree{newInplacePager(), nil, 0, 0}
 
 	const internalNode = false
 	ref, root := bt.pager.New(internalNode)
