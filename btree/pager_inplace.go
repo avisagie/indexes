@@ -37,6 +37,9 @@ type inplacePage struct {
 	// where are we in the current buffer?
 	nextOffset int
 
+	// the last key in the page
+	lastKey []byte
+
 	finds, comparisons int
 }
 
@@ -133,9 +136,7 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 
 	// short cut for in-order inserts
 	if len(p.offsets) > 0 {
-		// TODO(avisagie): maintain lastKey in *inplacePage to avoid this readKey
-		lastKey, _ := p.readKey(len(p.offsets) - 1)
-		if keyLess(lastKey, key) {
+		if keyLess(p.lastKey, key) {
 			pos = len(p.offsets)
 		}
 	} else {
@@ -175,6 +176,11 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 	p.offsets = append(p.offsets, -1)
 	copy(p.offsets[pos+1:], p.offsets[pos:len(p.offsets)-1])
 	p.offsets[pos] = offset
+	if pos == len(p.offsets)-1 {
+		// we're adding a new right-most key.
+		// save an internal reference to it
+		p.lastKey = p.data[offset+8 : offset+8+len(key)]
+	}
 
 	return true
 }
@@ -221,6 +227,7 @@ func (p *inplacePage) GetKey(i int) ([]byte, int) {
 // to the end.
 func (p *inplacePage) appendKey(key []byte, ref int) {
 	n := p.writeKey(p.nextOffset, key, ref)
+	p.lastKey = p.data[p.nextOffset+8 : p.nextOffset+8+len(key)]
 	p.offsets = append(p.offsets, p.nextOffset)
 	p.nextOffset += n
 }
