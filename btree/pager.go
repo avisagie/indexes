@@ -14,7 +14,7 @@ type Key interface {
 }
 
 type PageIter interface {
-	Next() (ok bool, key []byte, ref int)
+	Next() (key []byte, ref int, ok bool)
 }
 
 type Page interface {
@@ -30,7 +30,7 @@ type Page interface {
 	// Returns true and the key if it is found. Returns false and
 	// one key smaller if not found so that btree can use its
 	// reference to figure out in which child page it belongs...
-	Search(k []byte) (ok bool, key Key)
+	Search(k []byte) (key Key, ok bool)
 
 	IsLeaf() bool
 

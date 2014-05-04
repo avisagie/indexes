@@ -33,7 +33,7 @@ func spotCheck(index indexes.Index) {
 		x := rand.Int63n(N)
 		binary.Write(buf, binary.LittleEndian, x)
 		k := buf.Bytes()
-		ok, v := index.Get(k)
+		v, ok := index.Get(k)
 		if !ok || bytes.Compare(v, k) != 0 {
 			fmt.Println("bad:", ok, k, v)
 		}
@@ -64,7 +64,8 @@ func main() {
 	start := time.Now().UnixNano()
 	for count := int64(0); count < N; count++ {
 		binary.Write(buf, binary.LittleEndian, count)
-		index.Put(buf.Bytes(), buf.Bytes())
+		b := buf.Bytes()
+		index.Put(b, b)
 		buf.Reset()
 	}
 
@@ -91,7 +92,7 @@ func main() {
 	index2 := btree.NewInMemoryBtree().(*btree.Btree)
 	iter := index.Start([]byte{})
 	for {
-		ok, k, v := iter.Next()
+		k, v, ok := iter.Next()
 		if !ok {
 			break
 		}

@@ -37,6 +37,9 @@ type inplacePage struct {
 	// where are we in the current buffer?
 	nextOffset int
 
+	// the last key in the page
+	lastKey []byte
+
 	finds, comparisons int
 }
 
@@ -46,18 +49,18 @@ type inplacePageIter struct {
 	p      *inplacePage
 }
 
-func (i *inplacePageIter) Next() (ok bool, key []byte, ref int) {
+func (i *inplacePageIter) Next() (key []byte, ref int, ok bool) {
 	if i.pos >= len(i.p.offsets) {
 		return
 	}
 	key, ref = i.p.readKey(i.pos)
 	if !prefixMatches(key, i.prefix) {
-		return false, nilBytes, -1
+		return nil, -1, false
 	}
 
-	i.pos += 1
+	i.pos++
 
-	return true, key, ref
+	return key, ref, true
 }
 
 type keyRef struct {
@@ -77,8 +80,7 @@ func newKeyRef(key []byte, ref int) keyRef {
 	return keyRef{key, ref}
 }
 
-var nilKeyRef = keyRef{nilBytes, -1}
-var nilBytes []byte
+var nilKeyRef = keyRef{nil, -1}
 
 func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 	ret := &inplacePage{
@@ -92,7 +94,7 @@ func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 		comparisons: 0,
 	}
 	if !isLeaf {
-		ret.Insert(nilBytes, -1)
+		ret.Insert(nil, -1)
 	}
 	return ret
 }
@@ -101,38 +103,31 @@ func (p *inplacePage) find(key []byte) (pos int) {
 	pos = sort.Search(len(p.offsets), func(i int) bool {
 		p.comparisons++
 		k, _ := p.readKey(i)
-		return bytes.Compare(k, key) >= 0 // !keyLess(k, key)
+		return !keyLess(k, key)
 	})
 	p.finds++
 	return
 }
 
-func readInt32(data []byte, offset int) int32 {
-	return int32(data[offset]) |
-		(int32(data[offset+1]) << 8) |
-		(int32(data[offset+2]) << 16) |
-		(int32(data[offset+3]) << 24)
-}
-
-func writeInt32(data []byte, offset int, i int32) {
-	data[offset] = byte(i & 0xFF)
-	data[offset+1] = byte((i >> 8) & 0xFF)
-	data[offset+2] = byte((i >> 16) & 0xFF)
-	data[offset+3] = byte((i >> 24) & 0xFF)
-}
-
-func (p *inplacePage) writeKey(offset int, key []byte, ref int) {
-	length := len(key)
-	writeInt32(p.data, offset, int32(length))
-	writeInt32(p.data, offset+4, int32(ref))
-	copy(p.data[offset+8:offset+8+length], key)
+func (p *inplacePage) writeKey(offset int, key []byte, ref int) (n int) {
+	const lenSize = 4
+	const refSize = 4
+	keyLen := len(key)
+	writeInt32(p.data, offset, int32(keyLen))
+	offset += lenSize
+	writeInt32(p.data, offset, int32(ref))
+	offset += refSize
+	copy(p.data[offset:offset+keyLen], key)
+	return lenSize + refSize + keyLen
 }
 
 func (p *inplacePage) readKey(pos int) (key []byte, ref int) {
 	offset := p.offsets[pos]
 	length := int(readInt32(p.data, offset))
-	ref = int(readInt32(p.data, offset+4))
-	key = p.data[offset+8 : offset+8+length]
+	offset += 4
+	ref = int(readInt32(p.data, offset))
+	offset += 4
+	key = p.data[offset : offset+length]
 	return
 }
 
@@ -141,8 +136,7 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 
 	// short cut for in-order inserts
 	if len(p.offsets) > 0 {
-		lastKey, _ := p.readKey(len(p.offsets) - 1)
-		if bytes.Compare(lastKey, key) < 0 { // keyLess(lastKey, key) {
+		if keyLess(p.lastKey, key) {
 			pos = len(p.offsets)
 		}
 	} else {
@@ -154,46 +148,56 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 		pos = p.find(key)
 	}
 
+	const refSize = 4
 	if pos < len(p.offsets) {
 		k, _ := p.readKey(pos)
 		// replace
-		if bytes.Compare(key, k) == 0 {
-			writeInt32(p.data, p.offsets[pos]+4, int32(ref))
+		if bytes.Equal(key, k) {
+			// add the reference after the existing one
+			writeInt32(p.data, p.offsets[pos]+refSize, int32(ref))
 			return true
 		}
 	}
 
-	if p.nextOffset+len(key)+4+4 >= pageSize {
+	// TODO(avisagie): perform this check in writeKey and
+	// have writeKey return (n int, added bool)
+	const lenSize = 4
+	if p.nextOffset+len(key)+lenSize+refSize >= pageSize {
 		return false
 	}
 
 	// append the key to the page
 	offset := p.nextOffset
-	p.nextOffset += 8 + len(key)
-	p.writeKey(offset, key, ref)
+	n := p.writeKey(offset, key, ref)
+	p.nextOffset += n
 
 	// insert its offset into the right place in p.offsets to
 	// maintain sorted order.
 	p.offsets = append(p.offsets, -1)
 	copy(p.offsets[pos+1:], p.offsets[pos:len(p.offsets)-1])
 	p.offsets[pos] = offset
+	if pos == len(p.offsets)-1 {
+		// we're adding a new right-most key.
+		// save an internal reference to it
+		p.lastKey = p.data[offset+8 : offset+8+len(key)]
+	}
 
 	return true
 }
 
-func (p *inplacePage) Search(key []byte) (ok bool, k Key) {
+func (p *inplacePage) Search(key []byte) (k Key, ok bool) {
 	pos := p.find(key)
 	if pos == len(p.offsets) {
 		// key is greater than the last key in this page.
 		if !p.isLeaf {
-			return false, newKeyRef(p.readKey(pos - 1))
+			return newKeyRef(p.readKey(pos - 1)), false
 		}
-		return false, nilKeyRef
+		return nilKeyRef, false
 	}
 
 	k = newKeyRef(p.readKey(pos))
-	ok = bytes.Compare(key, k.Get()) == 0
-	if !ok && !p.isLeaf && bytes.Compare(key, k.Get()) < 0 { // keyLess(key, k.Get()) {
+	ok = bytes.Equal(key, k.Get())
+	if !ok && !p.isLeaf && keyLess(key, k.Get()) {
 		k = newKeyRef(p.readKey(pos - 1))
 	}
 	return
@@ -222,13 +226,14 @@ func (p *inplacePage) GetKey(i int) ([]byte, int) {
 // Used in split. Does not need to do binary search, just keep adding
 // to the end.
 func (p *inplacePage) appendKey(key []byte, ref int) {
-	p.writeKey(p.nextOffset, key, ref)
+	n := p.writeKey(p.nextOffset, key, ref)
+	p.lastKey = p.data[p.nextOffset+8 : p.nextOffset+8+len(key)]
 	p.offsets = append(p.offsets, p.nextOffset)
-	p.nextOffset += 8 + len(key)
+	p.nextOffset += n
 }
 
 func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
-	//fmt.Println("Splitting")
+	// fmt.Println("Splitting")
 
 	newPage, ok := newPage1.(*inplacePage)
 	if !ok {
@@ -248,8 +253,10 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 	for ; i < len(p.r.scratchOffsets); i++ {
 		offset = p.r.scratchOffsets[i]
 		length := int(readInt32(p.r.scratchData, offset))
-		ref = int(readInt32(p.r.scratchData, offset+4))
-		key = p.r.scratchData[offset+8 : offset+8+length]
+		offset += 4
+		ref = int(readInt32(p.r.scratchData, offset))
+		offset += 4
+		key = p.r.scratchData[offset : offset+length]
 		if length+p.nextOffset > pageSize/2 {
 			break
 		}
@@ -269,8 +276,10 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 	for ; i < len(p.r.scratchOffsets); i++ {
 		offset = p.r.scratchOffsets[i]
 		length := int(readInt32(p.r.scratchData, offset))
-		ref = int(readInt32(p.r.scratchData, offset+4))
-		key = p.r.scratchData[offset+8 : offset+8+length]
+		offset += 4
+		ref = int(readInt32(p.r.scratchData, offset))
+		offset += 4
+		key = p.r.scratchData[offset : offset+length]
 		//fmt.Println(i, "Copying", offset, key, ref, "right to", p.nextOffset)
 		newPage.appendKey(key, ref)
 	}
@@ -286,7 +295,6 @@ func (p *inplacePage) SetFirst(ref int) {
 	if p.isLeaf {
 		panic("Not setting first on non-leaf node")
 	}
-
 	writeInt32(p.data, 4, int32(ref))
 }
 
@@ -303,7 +311,7 @@ type inplacePager struct {
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{make([]*inplacePage, 0), make([]int, 0), make([]byte, pageSize), make([]int, 32)}
+	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32)}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {

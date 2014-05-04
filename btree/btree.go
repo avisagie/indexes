@@ -26,14 +26,14 @@ type btreeIter struct {
 	done     bool
 }
 
-func (i *btreeIter) Next() (ok bool, key []byte, value []byte) {
+func (i *btreeIter) Next() (key []byte, value []byte, ok bool) {
 	if i.done {
 		return
 	}
 
-	ok, key, ref := i.pageIter.Next()
+	key, ref, ok := i.pageIter.Next()
 	if ok {
-		return ok, key, i.b.values[ref]
+		return key, i.b.values[ref], ok
 	}
 
 	// !ok can mean we're done iterating or that we're at the end
@@ -48,27 +48,29 @@ func (i *btreeIter) Next() (ok bool, key []byte, value []byte) {
 
 	i.page = i.b.pager.Get(n)
 	i.pageIter = i.page.Start(i.prefix)
-	ok, key, ref = i.pageIter.Next()
+	key, ref, ok = i.pageIter.Next()
 	if !ok {
 		i.done = true
 		return
 	}
-	return ok, key, i.b.values[ref]
+	return key, i.b.values[ref], ok
 }
 
 func NewInMemoryBtree() indexes.Index {
-	ret := &Btree{newInplacePager(), make([][]byte, 0), 0, 0}
+	bt := &Btree{newInplacePager(), nil, 0, 0}
 
-	ref, root := ret.pager.New(false)
-	ret.root = ref
+	const internalNode = false
+	ref, root := bt.pager.New(internalNode)
+	bt.root = ref
 
-	ref, _ = ret.pager.New(true)
+	const leafNode = true
+	ref, _ = bt.pager.New(leafNode)
 	root.SetFirst(ref)
 
-	return ret
+	return bt
 }
 
-func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
+func (b *Btree) search(key []byte) (k Key, pageRefs []int, ok bool) {
 	pageRefs = make([]int, 0, 8)
 	ref := b.root
 
@@ -78,7 +80,7 @@ func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
 
 	for {
 		p := b.pager.Get(ref)
-		ok, k = p.Search(key)
+		k, ok = p.Search(key)
 		ref = k.Ref()
 
 		// if it is a leaf, we're done
@@ -92,12 +94,12 @@ func (b *Btree) search(key []byte) (ok bool, k Key, pageRefs []int) {
 	return
 }
 
-func (b *Btree) Get(key []byte) (ok bool, value []byte) {
-	if key == nil || len(key) == 0 {
+func (b *Btree) Get(key []byte) (value []byte, ok bool) {
+	if len(key) == 0 {
 		panic("Illegal key nil")
 	}
 
-	ok, k, _ := b.search(key)
+	k, _, ok := b.search(key)
 	if ok {
 		value = b.values[k.Ref()]
 	}
@@ -106,11 +108,7 @@ func (b *Btree) Get(key []byte) (ok bool, value []byte) {
 }
 
 func (b *Btree) Start(prefix []byte) (it indexes.Iter) {
-	if prefix == nil {
-		panic("Illegal key nil")
-	}
-
-	_, _, pageRefs := b.search(prefix)
+	_, pageRefs, _ := b.search(prefix)
 
 	ref := pageRefs[len(pageRefs)-1]
 	page := b.pager.Get(ref)
@@ -159,11 +157,11 @@ func (b *Btree) split(key []byte, ref int, pageRefs []int) {
 }
 
 func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
-	if key == nil || len(key) == 0 || valuev == nil {
+	if len(key) == 0 || len(valuev) == 0 {
 		panic("Illegal nil key or value")
 	}
 
-	replaced, k, pageRefs := b.search(key)
+	k, pageRefs, replaced := b.search(key)
 	if replaced {
 		// Overwrite the old value
 		b.values[k.Ref()] = append(b.values[k.Ref()][:0], valuev...)
@@ -180,25 +178,21 @@ func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
 	if !ok {
 		b.split(key, vref, pageRefs)
 	}
-
-	b.values = append(b.values, []byte{})
-	b.values[vref] = append(b.values[vref], value...)
-
+	b.values = append(b.values, value)
 	b.size++
-
 	return
 }
 
 func (b *Btree) Append(key []byte, value []byte) {
-	if key == nil || len(key) == 0 || value == nil {
+	if len(key) == 0 || len(value) == 0 {
 		panic("Illegal nil key or value")
 	}
 
-	ok, k, _ := b.search(key)
+	k, _, ok := b.search(key)
 	if ok {
 		b.values[k.Ref()] = append(b.values[k.Ref()], value...)
 	} else {
-		if b.Put(key, value) {
+		if replaced := b.Put(key, value); replaced {
 			panic("Did not expect to have to replace the value")
 		}
 	}
@@ -217,7 +211,7 @@ func (b *Btree) checkPage(page Page, checkMinKey bool, minKey []byte, ref int, d
 		for i := 0; i < page.Size(); i++ {
 			k, r := page.GetKey(i)
 			if !keyLess(prev, k) {
-				return fmt.Errorf("Expect strict ordering, got violation %v >= %v", prev, k)
+				return fmt.Errorf("expect strict ordering, got violation %v >= %v", prev, k)
 			}
 			if r < 0 {
 				return fmt.Errorf("value reference cannot be < 0")
@@ -227,15 +221,15 @@ func (b *Btree) checkPage(page Page, checkMinKey bool, minKey []byte, ref int, d
 	} else {
 		prevk, prevr := page.GetKey(0)
 		if prevr == -1 && page.Size() > 1 {
-			return fmt.Errorf("Expected internal node to refer to other pages")
+			return fmt.Errorf("expected internal node to refer to other pages")
 		}
 		for i := 1; i < page.Size(); i++ {
 			k, r := page.GetKey(i)
 			if checkMinKey && !keyLess(minKey, k) {
-				return fmt.Errorf("Expect parent key to be smaller or equal to all in referred to child page: got violation %v >= %v", prevk, minKey)
+				return fmt.Errorf("expect parent key to be smaller or equal to all in referred to child page: got violation %v >= %v", prevk, minKey)
 			}
 			if !keyLess(prevk, k) {
-				return fmt.Errorf("Expect strict ordering, got violation %v >= %v", prevk, k)
+				return fmt.Errorf("expect strict ordering, got violation %v >= %v", prevk, k)
 			}
 			if r < 0 {
 				return fmt.Errorf("value reference cannot be < 0")
@@ -256,21 +250,21 @@ func (b *Btree) CheckConsistency() error {
 	iter := b.Start([]byte{})
 	prev := []byte{}
 	for {
-		ok, k, _ := iter.Next()
+		k, _, ok := iter.Next()
 		if !ok {
 			break
 		}
-		if k == nil || len(k) == 0 {
-			return fmt.Errorf("Got empty key %v", k)
+		if len(k) == 0 {
+			return fmt.Errorf("got empty key")
 		}
 		if !keyLess(prev, k) {
-			return fmt.Errorf("Expect strict ordering, got violation %v >= %v", prev, k)
+			return fmt.Errorf("expect strict ordering, got violation %v >= %v", prev, k)
 		}
 		count++
 	}
 
 	if count != b.Size() {
-		return fmt.Errorf("Expected %d, got %d", b.Size(), count)
+		return fmt.Errorf("expected %d, got %d", b.Size(), count)
 	}
 
 	root := b.pager.Get(b.root)
@@ -311,7 +305,7 @@ func (b *Btree) appendPage(key []byte, ref int, pageRefs []int) {
 // you're going to keep doing that and therefore does the bulk put
 // operation.
 func (b *Btree) PutNext(keyv, valuev []byte) {
-	if keyv == nil || len(keyv) == 0 || valuev == nil {
+	if len(keyv) == 0 || len(valuev) == 0 {
 		panic("Illegal nil key or value")
 	}
 

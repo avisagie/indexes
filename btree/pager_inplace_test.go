@@ -66,7 +66,7 @@ func TestInplacePageSearchEmpty(t *testing.T) {
 	h := newInplacePage(false, p)
 
 	t.Log(h.offsets, h.nextOffset)
-	ok, k := h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 2})
+	k, ok := h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 2})
 	t.Log(ok, k)
 	if ok || len(k.Get()) != 0 || k.Ref() != -1 {
 		t.Fatal(ok, k)
@@ -97,19 +97,19 @@ func TestInplacePageSearch(t *testing.T) {
 		t.Log(i, "->", k, r)
 	}
 
-	ok, k := h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 2})
+	k, ok := h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 2})
 	t.Log(ok, k)
 	if !ok || bytes.Compare(k.Get(), []byte{0, 0, 0, 0, 0, 0, 0, 2}) != 0 || k.Ref() != 2 {
 		t.Fatal(ok, k)
 	}
 
-	ok, k = h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 5})
+	k, ok = h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 5})
 	t.Log(ok, k)
 	if !(ok && k.Ref() == 5) {
 		t.Fatal(ok, k)
 	}
 
-	ok, k = h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 6})
+	k, ok = h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 6})
 	t.Log(ok, k)
 	if ok || k.Ref() != 5 {
 		t.Fatal(ok, k)
