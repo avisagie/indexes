@@ -22,7 +22,7 @@ func printMem() {
 }
 
 const (
-	N          = 1000000
+	N          = 10000000
 	spotCheckN = 10000
 )
 
@@ -64,7 +64,8 @@ func main() {
 	start := time.Now().UnixNano()
 	for count := int64(0); count < N; count++ {
 		binary.Write(buf, binary.LittleEndian, count)
-		index.Put(buf.Bytes(), buf.Bytes())
+		b := buf.Bytes()
+		index.Put(b, b)
 		buf.Reset()
 	}
 
