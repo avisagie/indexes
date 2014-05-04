@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -42,6 +43,14 @@ func spotCheck(index indexes.Index) {
 	fmt.Println("Spot check of", spotCheckN, "elements took", (end-start)/1000, "us,", (end-start)/spotCheckN, "ns per lookup.")
 }
 
+func printStats(stats btree.BtreeStats) {
+	s, e := json.MarshalIndent(stats, "", "\t")
+	if e != nil {
+		panic(e)
+	}
+	fmt.Println(string(s))
+}
+
 func main() {
 	out, err := os.Create("prof")
 	if err != nil {
@@ -65,7 +74,7 @@ func main() {
 
 	runtime.GC()
 
-	fmt.Println(index.(*btree.Btree).Stats())
+	printStats(index.(*btree.Btree).Stats())
 
 	//index.(*btree.Btree).Dump(os.Stdout)
 	if err := index.(*btree.Btree).CheckConsistency(); err != nil {
@@ -78,8 +87,6 @@ func main() {
 	spotCheck(index)
 	runtime.GC()
 
-	pprof.StartCPUProfile(out)
-
 	start = time.Now().UnixNano()
 	index2 := btree.NewInMemoryBtree().(*btree.Btree)
 	iter := index.Start([]byte{})
@@ -91,9 +98,11 @@ func main() {
 		index2.PutNext(k, v)
 	}
 
-	fmt.Println(index.Size(), index2.Size())
+	if index.Size() != index2.Size() {
+		panic(fmt.Sprint("Sizes differ, ", index.Size, " vs ", index2.Size()))
+	}
 
-	fmt.Println(index2.Stats())
+	printStats(index2.Stats())
 
 	index = nil
 
@@ -101,16 +110,17 @@ func main() {
 	end = time.Now().UnixNano()
 	fmt.Println("elapsed:", (end-start)/1000000, "ms")
 
+	runtime.GC()
+	printMem()
+
+	spotCheck(index2)
+	runtime.GC()
+	printMem()
+
+	pprof.StartCPUProfile(out)
+	spotCheck(index2)
+	spotCheck(index2)
+	spotCheck(index2)
 	pprof.StopCPUProfile()
 
-	runtime.GC()
-	printMem()
-
-	spotCheck(index2)
-	runtime.GC()
-	printMem()
-
-	spotCheck(index2)
-	spotCheck(index2)
-	spotCheck(index2)
 }

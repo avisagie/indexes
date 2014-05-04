@@ -52,7 +52,7 @@ func (i *inplacePageIter) Next() (ok bool, key []byte, ref int) {
 	}
 	key, ref = i.p.readKey(i.pos)
 	if !prefixMatches(key, i.prefix) {
-		return false, []byte{}, -1
+		return false, nilBytes, -1
 	}
 
 	i.pos += 1
@@ -77,6 +77,9 @@ func newKeyRef(key []byte, ref int) keyRef {
 	return keyRef{key, ref}
 }
 
+var nilKeyRef = keyRef{nilBytes, -1}
+var nilBytes []byte
+
 func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 	ret := &inplacePage{
 		offsets:     make([]int, 0),
@@ -89,7 +92,7 @@ func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 		comparisons: 0,
 	}
 	if !isLeaf {
-		ret.Insert([]byte{}, -1)
+		ret.Insert(nilBytes, -1)
 	}
 	return ret
 }
@@ -98,7 +101,7 @@ func (p *inplacePage) find(key []byte) (pos int) {
 	pos = sort.Search(len(p.offsets), func(i int) bool {
 		p.comparisons++
 		k, _ := p.readKey(i)
-		return !keyLess(k, key)
+		return bytes.Compare(k, key) >= 0 // !keyLess(k, key)
 	})
 	p.finds++
 	return
@@ -139,7 +142,7 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 	// short cut for in-order inserts
 	if len(p.offsets) > 0 {
 		lastKey, _ := p.readKey(len(p.offsets) - 1)
-		if keyLess(lastKey, key) {
+		if bytes.Compare(lastKey, key) < 0 { // keyLess(lastKey, key) {
 			pos = len(p.offsets)
 		}
 	} else {
@@ -185,12 +188,12 @@ func (p *inplacePage) Search(key []byte) (ok bool, k Key) {
 		if !p.isLeaf {
 			return false, newKeyRef(p.readKey(pos - 1))
 		}
-		return false, keyRef{[]byte{}, -1}
+		return false, nilKeyRef
 	}
 
 	k = newKeyRef(p.readKey(pos))
 	ok = bytes.Compare(key, k.Get()) == 0
-	if !ok && !p.isLeaf && keyLess(key, k.Get()) {
+	if !ok && !p.isLeaf && bytes.Compare(key, k.Get()) < 0 { // keyLess(key, k.Get()) {
 		k = newKeyRef(p.readKey(pos - 1))
 	}
 	return
@@ -340,11 +343,21 @@ func (r *inplacePager) Release(ref int) {
 
 func (r *inplacePager) Stats() BtreeStats {
 	ret := BtreeStats{}
+	sumFill := 0.0
+	countFill := 0.0
 	for _, p := range r.pages {
 		if p != nil {
-			ret.finds += p.finds
-			ret.comparisons += p.comparisons
+			ret.Finds += p.finds
+			ret.Comparisons += p.comparisons
+			sumFill += float64(p.nextOffset) / float64(pageSize)
+			countFill += 1.0
+			if p.IsLeaf() {
+				ret.NumLeafPages++
+			} else {
+				ret.NumInternalPages++
+			}
 		}
 	}
+	ret.FillRate = sumFill / countFill
 	return ret
 }

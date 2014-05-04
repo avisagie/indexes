@@ -3,15 +3,6 @@ package btree
 import "bytes"
 
 func keyLess(ki, kj []byte) bool {
-	// if the key is nil or empty, it is defined to be the
-	// smallest one in the page.
-	switch {
-	case kj == nil || len(kj) == 0:
-		return false
-	case ki == nil || len(ki) == 0:
-		return true
-	}
-
 	return bytes.Compare(ki, kj) < 0
 }
 

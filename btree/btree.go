@@ -363,8 +363,11 @@ func (b *Btree) Dump(out io.Writer) {
 }
 
 type BtreeStats struct {
-	finds       int
-	comparisons int
+	Finds            int
+	Comparisons      int
+	FillRate         float64
+	NumInternalPages int
+	NumLeafPages     int
 }
 
 func (b *Btree) Stats() BtreeStats {
