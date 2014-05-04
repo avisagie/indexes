@@ -107,20 +107,6 @@ func (p *inplacePage) find(key []byte) (pos int) {
 	return
 }
 
-func readInt32(data []byte, offset int) int32 {
-	return int32(data[offset]) |
-		(int32(data[offset+1]) << 8) |
-		(int32(data[offset+2]) << 16) |
-		(int32(data[offset+3]) << 24)
-}
-
-func writeInt32(data []byte, offset int, i int32) {
-	data[offset] = byte(i & 0xFF)
-	data[offset+1] = byte((i >> 8) & 0xFF)
-	data[offset+2] = byte((i >> 16) & 0xFF)
-	data[offset+3] = byte((i >> 24) & 0xFF)
-}
-
 func (p *inplacePage) writeKey(offset int, key []byte, ref int) {
 	length := len(key)
 	writeInt32(p.data, offset, int32(length))
@@ -131,8 +117,10 @@ func (p *inplacePage) writeKey(offset int, key []byte, ref int) {
 func (p *inplacePage) readKey(pos int) (key []byte, ref int) {
 	offset := p.offsets[pos]
 	length := int(readInt32(p.data, offset))
-	ref = int(readInt32(p.data, offset+4))
-	key = p.data[offset+8 : offset+8+length]
+	offset+=4
+	ref = int(readInt32(p.data, offset))
+	offset+=4
+	key = p.data[offset : offset+length]
 	return
 }
 
