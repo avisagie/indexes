@@ -25,7 +25,8 @@ type inplacePage struct {
 	// disk.
 	offsets []int
 
-	// Data as it is on disk
+	// keys, lengths and refs encoded into bytes for writing to
+	// disk.
 	data []byte
 
 	// Reference to the next page
@@ -35,6 +36,8 @@ type inplacePage struct {
 
 	// where are we in the current buffer?
 	nextOffset int
+
+	finds, comparisons int
 }
 
 type inplacePageIter struct {
@@ -76,12 +79,14 @@ func newKeyRef(key []byte, ref int) keyRef {
 
 func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 	ret := &inplacePage{
-		offsets:    make([]int, 0),
-		data:       make([]byte, pageSize),
-		next:       -1,
-		isLeaf:     isLeaf,
-		r:          r,
-		nextOffset: 0,
+		offsets:     make([]int, 0),
+		data:        make([]byte, pageSize),
+		next:        -1,
+		isLeaf:      isLeaf,
+		r:           r,
+		nextOffset:  0,
+		finds:       0,
+		comparisons: 0,
 	}
 	if !isLeaf {
 		ret.Insert([]byte{}, -1)
@@ -90,10 +95,13 @@ func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 }
 
 func (p *inplacePage) find(key []byte) (pos int) {
-	return sort.Search(len(p.offsets), func(i int) bool {
+	pos = sort.Search(len(p.offsets), func(i int) bool {
+		p.comparisons++
 		k, _ := p.readKey(i)
 		return !keyLess(k, key)
 	})
+	p.finds++
+	return
 }
 
 func readInt32(data []byte, offset int) int32 {
@@ -126,7 +134,23 @@ func (p *inplacePage) readKey(pos int) (key []byte, ref int) {
 }
 
 func (p *inplacePage) Insert(key []byte, ref int) bool {
-	pos := p.find(key)
+	pos := -1
+
+	// short cut for in-order inserts
+	if len(p.offsets) > 0 {
+		lastKey, _ := p.readKey(len(p.offsets) - 1)
+		if keyLess(lastKey, key) {
+			pos = len(p.offsets)
+		}
+	} else {
+		pos = 0
+	}
+
+	// not in order? Find the right place
+	if pos == -1 {
+		pos = p.find(key)
+	}
+
 	if pos < len(p.offsets) {
 		k, _ := p.readKey(pos)
 		// replace
@@ -312,4 +336,15 @@ func (r *inplacePager) Get(ref int) (page Page) {
 func (r *inplacePager) Release(ref int) {
 	r.freePages = append(r.freePages, ref)
 	r.pages[ref] = nil
+}
+
+func (r *inplacePager) Stats() BtreeStats {
+	ret := BtreeStats{}
+	for _, p := range r.pages {
+		if p != nil {
+			ret.finds += p.finds
+			ret.comparisons += ret.comparisons
+		}
+	}
+	return ret
 }

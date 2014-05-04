@@ -63,4 +63,5 @@ type Pager interface {
 	New(isLeaf bool) (ref int, page Page)
 	Get(ref int) (page Page)
 	Release(ref int)
+	Stats() BtreeStats
 }

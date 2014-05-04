@@ -5,11 +5,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"math/rand"
 	"runtime"
 	"time"
 
-	"github.com/avisagie/indexes"
 	"github.com/cloudflare/gokabinet/kc"
 )
 
@@ -24,23 +22,6 @@ const (
 	spotCheckN = 10000
 )
 
-func spotCheck(index indexes.Index) {
-	buf := &bytes.Buffer{}
-	start := time.Now().UnixNano()
-	for i := 0; i < spotCheckN; i++ {
-		x := rand.Int63n(N)
-		binary.Write(buf, binary.LittleEndian, x)
-		k := buf.Bytes()
-		ok, v := index.Get(k)
-		if !ok || bytes.Compare(v, k) != 0 {
-			fmt.Println("bad:", ok, k, v)
-		}
-		buf.Reset()
-	}
-	end := time.Now().UnixNano()
-	fmt.Println("Spot check of", spotCheckN, "elements took", (end-start)/1000, "us,", (end-start)/spotCheckN, "ns per lookup.")
-}
-
 func main() {
 	db, err := kc.Open("/dev/shm/cache.kch", kc.WRITE)
 	if err != nil {
@@ -51,8 +32,12 @@ func main() {
 	start := time.Now().UnixNano()
 	buf := &bytes.Buffer{}
 	for count := int64(0); count < N; count++ {
+		if count%1000 == 0 {
+			fmt.Println(count, "/", N)
+		}
 		binary.Write(buf, binary.LittleEndian, count)
-		db.Set(string(buf.Bytes()), string(buf.Bytes()))
+		b := buf.Bytes()
+		db.SetBytes(b, b)
 		buf.Reset()
 	}
 

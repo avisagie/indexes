@@ -361,3 +361,12 @@ func (b *Btree) dumpPage(out io.Writer, ref, depth int) {
 func (b *Btree) Dump(out io.Writer) {
 	b.dumpPage(out, b.root, 0)
 }
+
+type BtreeStats struct {
+	finds       int
+	comparisons int
+}
+
+func (b *Btree) Stats() BtreeStats {
+	return b.pager.(*inplacePager).Stats()
+}

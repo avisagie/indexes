@@ -49,8 +49,6 @@ func main() {
 	}
 	defer out.Close()
 
-	pprof.StartCPUProfile(out)
-
 	index := btree.NewInMemoryBtree()
 	buf := &bytes.Buffer{}
 
@@ -65,9 +63,9 @@ func main() {
 	fmt.Println("elapsed: ", (end-start)/1000000, "ms")
 	start = end
 
-	pprof.StopCPUProfile()
-
 	runtime.GC()
+
+	fmt.Println(index.(*btree.Btree).Stats())
 
 	//index.(*btree.Btree).Dump(os.Stdout)
 	if err := index.(*btree.Btree).CheckConsistency(); err != nil {
@@ -79,6 +77,8 @@ func main() {
 
 	spotCheck(index)
 	runtime.GC()
+
+	pprof.StartCPUProfile(out)
 
 	start = time.Now().UnixNano()
 	index2 := btree.NewInMemoryBtree().(*btree.Btree)
@@ -93,18 +93,24 @@ func main() {
 
 	fmt.Println(index.Size(), index2.Size())
 
+	fmt.Println(index2.Stats())
+
 	index = nil
 
 	runtime.GC()
 	end = time.Now().UnixNano()
 	fmt.Println("elapsed:", (end-start)/1000000, "ms")
 
+	pprof.StopCPUProfile()
+
+	runtime.GC()
+	printMem()
+
+	spotCheck(index2)
 	runtime.GC()
 	printMem()
 
 	spotCheck(index2)
 	spotCheck(index2)
 	spotCheck(index2)
-	spotCheck(index2)
-	runtime.GC()
 }
