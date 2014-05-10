@@ -306,13 +306,11 @@ func (p *inplacePage) Size() int {
 }
 
 func (p *inplacePage) InsertValue(value []byte) int {
-	vref := len(p.r.values)
-	p.r.values = append(p.r.values, copyBytes(value))
-	return vref
+	return p.r.values.Put(value)
 }
 
 func (p *inplacePage) GetValue(vref int) []byte {
-	return p.r.values[vref]
+	return p.r.values.Get(vref)
 }
 
 // Implements Pager by keeping pages in RAM on the heap.
@@ -321,11 +319,11 @@ type inplacePager struct {
 	freePages      []int
 	scratchData    []byte
 	scratchOffsets []int
-	values         [][]byte
+	values         *everbuf
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32), make([][]byte, 0, 16)}
+	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32), newEverbuf()}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {
