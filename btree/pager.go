@@ -57,6 +57,11 @@ type Page interface {
 	// Number of keys. See GetKey for an explanation of what to
 	// expect around key 0.
 	Size() int
+
+	// Tie allocation of space for values to the pages. Only
+	// relevant for leaf nodes.
+	InsertValue(value []byte) int
+	GetValue(ref int) []byte
 }
 
 type Pager interface {

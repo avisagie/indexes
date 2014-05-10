@@ -170,6 +170,9 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 	offset := p.nextOffset
 	n := p.writeKey(offset, key, ref)
 	p.nextOffset += n
+	if p.nextOffset&0x07 != 0 {
+		p.nextOffset = (p.nextOffset | 0x07) + 1
+	}
 
 	// insert its offset into the right place in p.offsets to
 	// maintain sorted order.
@@ -302,16 +305,27 @@ func (p *inplacePage) Size() int {
 	return len(p.offsets)
 }
 
+func (p *inplacePage) InsertValue(value []byte) int {
+	vref := len(p.r.values)
+	p.r.values = append(p.r.values, copyBytes(value))
+	return vref
+}
+
+func (p *inplacePage) GetValue(vref int) []byte {
+	return p.r.values[vref]
+}
+
 // Implements Pager by keeping pages in RAM on the heap.
 type inplacePager struct {
 	pages          []*inplacePage
 	freePages      []int
 	scratchData    []byte
 	scratchOffsets []int
+	values         [][]byte
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32)}
+	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32), make([][]byte, 0, 16)}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {

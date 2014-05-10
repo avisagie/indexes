@@ -12,10 +12,9 @@ import (
 
 // B+ Tree. Consists of pages. Satisfies indexes.Index.
 type Btree struct {
-	pager  Pager
-	values [][]byte
-	root   int
-	size   int64
+	pager Pager
+	root  int
+	size  int64
 }
 
 type btreeIter struct {
@@ -33,7 +32,7 @@ func (i *btreeIter) Next() (key []byte, value []byte, ok bool) {
 
 	key, ref, ok := i.pageIter.Next()
 	if ok {
-		return key, i.b.values[ref], ok
+		return key, i.page.GetValue(ref), ok
 	}
 
 	// !ok can mean we're done iterating or that we're at the end
@@ -53,11 +52,11 @@ func (i *btreeIter) Next() (key []byte, value []byte, ok bool) {
 		i.done = true
 		return
 	}
-	return key, i.b.values[ref], ok
+	return key, i.page.GetValue(ref), ok
 }
 
 func NewInMemoryBtree() indexes.Index {
-	bt := &Btree{newInplacePager(), nil, 0, 0}
+	bt := &Btree{newInplacePager(), 0, 0}
 
 	const internalNode = false
 	ref, root := bt.pager.New(internalNode)
@@ -99,9 +98,10 @@ func (b *Btree) Get(key []byte) (value []byte, ok bool) {
 		panic("Illegal key nil")
 	}
 
-	k, _, ok := b.search(key)
+	k, pageRefs, ok := b.search(key)
 	if ok {
-		value = b.values[k.Ref()]
+		page := b.pager.Get(pageRefs[len(pageRefs)-1])
+		value = page.GetValue(k.Ref())
 	}
 
 	return
@@ -161,24 +161,21 @@ func (b *Btree) Put(key []byte, valuev []byte) (replaced bool) {
 		panic("Illegal nil key or value")
 	}
 
-	k, pageRefs, replaced := b.search(key)
-	if replaced {
-		// Overwrite the old value
-		b.values[k.Ref()] = append(b.values[k.Ref()][:0], valuev...)
-		return
-	}
-
-	// TODO factor out allocating space for values to the pager?
-	value := copyBytes(valuev)
-
-	vref := len(b.values)
+	_, pageRefs, replaced := b.search(key)
 	pageRef := pageRefs[len(pageRefs)-1]
 	page := b.pager.Get(pageRef)
+	if replaced {
+		// TODO do not waste a slot in p.r.values
+		vref := page.InsertValue(valuev)
+		page.Insert(key, vref)
+		return true
+	}
+
+	vref := page.InsertValue(valuev)
 	ok := page.Insert(key, vref)
 	if !ok {
 		b.split(key, vref, pageRefs)
 	}
-	b.values = append(b.values, value)
 	b.size++
 	return
 }
@@ -188,9 +185,19 @@ func (b *Btree) Append(key []byte, value []byte) {
 		panic("Illegal nil key or value")
 	}
 
-	k, _, ok := b.search(key)
+	k, pageRefs, ok := b.search(key)
 	if ok {
-		b.values[k.Ref()] = append(b.values[k.Ref()], value...)
+		pageRef := pageRefs[len(pageRefs)-1]
+		page := b.pager.Get(pageRef)
+		if !page.IsLeaf() {
+			panic("Found a key in a non-leaf node")
+		}
+
+		// TODO extend Page's InsertValue to be able to append
+		// without having to ditch the old copy.
+		newValue := append(page.GetValue(k.Ref()), value...)
+		newRef := page.InsertValue(newValue)
+		page.Insert(k.Get(), newRef)
 	} else {
 		if replaced := b.Put(key, value); replaced {
 			panic("Did not expect to have to replace the value")
@@ -304,8 +311,8 @@ func (b *Btree) appendPage(key []byte, ref int, pageRefs []int) {
 // Put a key that is strictly larger than the previous one. Assumes
 // you're going to keep doing that and therefore does the bulk put
 // operation.
-func (b *Btree) PutNext(keyv, valuev []byte) {
-	if len(keyv) == 0 || len(valuev) == 0 {
+func (b *Btree) PutNext(key, value []byte) {
+	if len(key) == 0 || len(value) == 0 {
 		panic("Illegal nil key or value")
 	}
 
@@ -314,16 +321,14 @@ func (b *Btree) PutNext(keyv, valuev []byte) {
 	page := b.pager.Get(b.root)
 	for !page.IsLeaf() {
 		k, r := page.GetKey(page.Size() - 1)
-		if !keyLess(k, keyv) {
-			panic(fmt.Sprint("out of order put:", keyv))
+		if !keyLess(k, key) {
+			panic(fmt.Sprint("out of order put:", key))
 		}
 		page = b.pager.Get(r)
 		pageRefs = append(pageRefs, r)
 	}
 
-	vref := len(b.values)
-	b.values = append(b.values, copyBytes(valuev))
-	key := copyBytes(keyv)
+	vref := page.InsertValue(value)
 	ok := page.Insert(key, vref)
 	if !ok {
 		b.appendPage(key, vref, pageRefs)
