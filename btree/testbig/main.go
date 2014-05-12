@@ -88,6 +88,7 @@ func main() {
 	spotCheck(index)
 	runtime.GC()
 
+	pprof.StartCPUProfile(out)
 	start = time.Now().UnixNano()
 	index2 := btree.NewInMemoryBtree().(*btree.Btree)
 	iter := index.Start([]byte{})
@@ -98,6 +99,8 @@ func main() {
 		}
 		index2.PutNext(k, v)
 	}
+
+	pprof.StopCPUProfile()
 
 	if index.Size() != index2.Size() {
 		panic(fmt.Sprint("Sizes differ, ", index.Size, " vs ", index2.Size()))
@@ -118,10 +121,8 @@ func main() {
 	runtime.GC()
 	printMem()
 
-	pprof.StartCPUProfile(out)
-	spotCheck(index2)
-	spotCheck(index2)
-	spotCheck(index2)
-	pprof.StopCPUProfile()
+	for ii := 0; ii < 10; ii++ {
+		spotCheck(index2)
+	}
 
 }

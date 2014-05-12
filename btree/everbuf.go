@@ -28,6 +28,9 @@ func (e *everbuf) Put(b []byte) (ref int) {
 	copy(e.cur[o+2:o+2+l], b)
 	ref = e.curr + bufSize*(len(e.bufs)-1)
 	e.curr += 2 + l
+	if e.curr&0x07 != 0 {
+		e.curr = (e.curr | 0x07) + 1
+	}
 	return
 }
 
