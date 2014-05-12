@@ -13,6 +13,7 @@ type ROIndex interface {
 	Get(key []byte) (value []byte, ok bool)
 	Start(keyPrefix []byte) Iter
 	Size() int64
+	Dispose()
 }
 
 // Index that can put

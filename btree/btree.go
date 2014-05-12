@@ -367,8 +367,16 @@ type BtreeStats struct {
 	FillRate         float64
 	NumInternalPages int
 	NumLeafPages     int
+	KeyBytes         int
+	ValueBytes       int
+	PageBytes        int
+	ValueStoreBytes  int
 }
 
 func (b *Btree) Stats() BtreeStats {
 	return b.pager.(*inplacePager).Stats()
+}
+
+func (b *Btree) Dispose() {
+	b.pager.Dispose()
 }

@@ -69,4 +69,5 @@ type Pager interface {
 	Get(ref int) (page Page)
 	Release(ref int)
 	Stats() BtreeStats
+	Dispose()
 }

@@ -17,7 +17,7 @@ func newEverbuf() *everbuf {
 // Copy these bytes, and return a refernce that lets you get it back.
 func (e *everbuf) Put(b []byte) (ref int) {
 	if len(b)+e.curr >= len(e.cur) {
-		e.cur = make([]byte, bufSize)
+		e.cur = malloc(bufSize)
 		e.bufs = append(e.bufs, e.cur)
 		e.curr = 0
 	}
@@ -42,4 +42,14 @@ func (e *everbuf) Get(ref int) []byte {
 	b := e.bufs[p]
 	l := int(uint16(b[o]) | (uint16(b[o+1]) << 8))
 	return b[o+2 : o+2+l]
+}
+
+func (e *everbuf) TotalSize() int {
+	return len(e.bufs) * bufSize
+}
+
+func (e *everbuf) Dispose() {
+	for _, b := range e.bufs {
+		free(b)
+	}
 }

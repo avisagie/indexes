@@ -85,7 +85,7 @@ var nilKeyRef = keyRef{nil, -1}
 func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 	ret := &inplacePage{
 		offsets:     make([]int, 0),
-		data:        make([]byte, pageSize),
+		data:        malloc(pageSize),
 		next:        -1,
 		isLeaf:      isLeaf,
 		r:           r,
@@ -243,7 +243,7 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 		panic("Cannot split into a different type of page: expected a inplacePage")
 	}
 
-	p.r.scratchData = append(p.r.scratchData[:0], p.data...)
+	copy(p.r.scratchData, p.data)
 	p.r.scratchOffsets = append(p.r.scratchOffsets[:0], p.offsets...)
 
 	p.offsets = p.offsets[:0]
@@ -313,6 +313,10 @@ func (p *inplacePage) GetValue(vref int) []byte {
 	return p.r.values.Get(vref)
 }
 
+func (p *inplacePage) Dispose() {
+	free(p.data)
+}
+
 // Implements Pager by keeping pages in RAM on the heap.
 type inplacePager struct {
 	pages          []*inplacePage
@@ -323,7 +327,7 @@ type inplacePager struct {
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{nil, nil, make([]byte, pageSize), make([]int, 32), newEverbuf()}
+	return &inplacePager{nil, nil, malloc(pageSize), make([]int, 32), newEverbuf()}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {
@@ -376,8 +380,25 @@ func (r *inplacePager) Stats() BtreeStats {
 			} else {
 				ret.NumInternalPages++
 			}
+
+			for ik := 0; ik < p.Size(); ik++ {
+				k, ref := p.GetKey(ik)
+				ret.KeyBytes += len(k)
+				ret.ValueBytes += len(r.values.Get(ref))
+			}
+
+			ret.PageBytes += pageSize
 		}
 	}
 	ret.FillRate = sumFill / countFill
+	ret.ValueStoreBytes = r.values.TotalSize()
 	return ret
+}
+
+func (r *inplacePager) Dispose() {
+	for _, p := range r.pages {
+		p.Dispose()
+	}
+	r.values.Dispose()
+	free(r.scratchData)
 }
