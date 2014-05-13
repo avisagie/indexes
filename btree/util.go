@@ -21,6 +21,10 @@ func readInt32(data []byte, offset int) int32 {
 	return int32(*(*uint32)(unsafe.Pointer(&data[offset])))
 }
 
+func readInt32c(data []byte, offset int) int32
+
+func writeInt32c(data []byte, offset int, v int32)
+
 func writeInt32(data []byte, offset int, i int32) {
 	data[offset] = byte(i & 0xFF)
 	data[offset+1] = byte((i >> 8) & 0xFF)

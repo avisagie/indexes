@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+
+	"github.com/avisagie/indexes/malloc"
 )
 
 // Implements Page using byte slices on the heap. Keys store length,
@@ -85,7 +87,7 @@ var nilKeyRef = keyRef{nil, -1}
 func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 	ret := &inplacePage{
 		offsets:     make([]int, 0),
-		data:        malloc(pageSize),
+		data:        malloc.Malloc(pageSize),
 		next:        -1,
 		isLeaf:      isLeaf,
 		r:           r,
@@ -314,7 +316,7 @@ func (p *inplacePage) GetValue(vref int) []byte {
 }
 
 func (p *inplacePage) Dispose() {
-	free(p.data)
+	malloc.Free(p.data)
 }
 
 // Implements Pager by keeping pages in RAM on the heap.
@@ -327,7 +329,7 @@ type inplacePager struct {
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{nil, nil, malloc(pageSize), make([]int, 32), newEverbuf()}
+	return &inplacePager{nil, nil, malloc.Malloc(pageSize), make([]int, 32), newEverbuf()}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {
@@ -400,5 +402,5 @@ func (r *inplacePager) Dispose() {
 		p.Dispose()
 	}
 	r.values.Dispose()
-	free(r.scratchData)
+	malloc.Free(r.scratchData)
 }

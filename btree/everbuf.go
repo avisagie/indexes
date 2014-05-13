@@ -1,5 +1,9 @@
 package btree
 
+import (
+	"github.com/avisagie/indexes/malloc"
+)
+
 const (
 	bufSize = 1 << 20
 )
@@ -17,7 +21,7 @@ func newEverbuf() *everbuf {
 // Copy these bytes, and return a refernce that lets you get it back.
 func (e *everbuf) Put(b []byte) (ref int) {
 	if len(b)+e.curr >= len(e.cur) {
-		e.cur = malloc(bufSize)
+		e.cur = malloc.Malloc(bufSize)
 		e.bufs = append(e.bufs, e.cur)
 		e.curr = 0
 	}
@@ -50,6 +54,6 @@ func (e *everbuf) TotalSize() int {
 
 func (e *everbuf) Dispose() {
 	for _, b := range e.bufs {
-		free(b)
+		malloc.Free(b)
 	}
 }

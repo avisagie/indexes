@@ -22,7 +22,7 @@ func printMem() {
 }
 
 const (
-	N          = 2000000
+	N          = 10000000
 	spotCheckN = 10000
 )
 
