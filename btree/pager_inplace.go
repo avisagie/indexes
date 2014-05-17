@@ -111,16 +111,21 @@ func (p *inplacePage) find(key []byte) (pos int) {
 	return
 }
 
-func (p *inplacePage) writeKey(offset int, key []byte, ref int) (n int) {
+func (p *inplacePage) writeKey(offset int, key []byte, ref int) (n int, ok bool) {
 	const lenSize = 4
 	const refSize = 4
 	keyLen := len(key)
+
+	if offset+lenSize+refSize+keyLen > pageSize {
+		return 0, false
+	}
+
 	writeInt32(p.data, offset, int32(keyLen))
 	offset += lenSize
 	writeInt32(p.data, offset, int32(ref))
 	offset += refSize
 	copy(p.data[offset:offset+keyLen], key)
-	return lenSize + refSize + keyLen
+	return lenSize + refSize + keyLen, true
 }
 
 func (p *inplacePage) readKey(pos int) (key []byte, ref int) {
@@ -161,16 +166,12 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 		}
 	}
 
-	// TODO(avisagie): perform this check in writeKey and
-	// have writeKey return (n int, added bool)
-	const lenSize = 4
-	if p.nextOffset+len(key)+lenSize+refSize >= pageSize {
-		return false
-	}
-
 	// append the key to the page
 	offset := p.nextOffset
-	n := p.writeKey(offset, key, ref)
+	n, ok := p.writeKey(offset, key, ref)
+	if !ok {
+		return false
+	}
 	p.nextOffset += n
 	if p.nextOffset&0x07 != 0 {
 		p.nextOffset = (p.nextOffset | 0x07) + 1
@@ -231,7 +232,10 @@ func (p *inplacePage) GetKey(i int) ([]byte, int) {
 // Used in split. Does not need to do binary search, just keep adding
 // to the end.
 func (p *inplacePage) appendKey(key []byte, ref int) {
-	n := p.writeKey(p.nextOffset, key, ref)
+	n, ok := p.writeKey(p.nextOffset, key, ref)
+	if !ok {
+		panic("appendKey assumes there will be space")
+	}
 	p.lastKey = p.data[p.nextOffset+8 : p.nextOffset+8+len(key)]
 	p.offsets = append(p.offsets, p.nextOffset)
 	p.nextOffset += n
