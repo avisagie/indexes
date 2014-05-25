@@ -1,10 +1,5 @@
 package btree
 
-const (
-	pageSize    = 16 << 10
-	ramPageSize = 100 // keys per node (must be even...)
-)
-
 type Key interface {
 	// key bytes. Immutable please.
 	Get() []byte

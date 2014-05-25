@@ -89,7 +89,7 @@ func TestInplacePageSearch(t *testing.T) {
 		if !h.Insert(k.key, k.ref) {
 			t.Fatal("Could not insert")
 		}
-		t.Log(h.offsets, h.nextOffset, pageSize)
+		t.Log(h.offsets, h.nextOffset, inMemoryPageSize)
 	}
 
 	for i := 0; i < h.Size(); i++ {

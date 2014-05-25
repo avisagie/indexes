@@ -8,6 +8,12 @@ import (
 	"github.com/avisagie/indexes/malloc"
 )
 
+const (
+	// This is a good inMemoryPageSize for x64 while building an in-memory
+	// b+tree.
+	inMemoryPageSize = 16 << 10
+)
+
 // Implements Page using byte slices on the heap. Keys store length,
 // bytes and a reference to the value in the page itself. If it is a
 // leaf, the first key has zero bytes, and its reference is the left
@@ -87,7 +93,7 @@ var nilKeyRef = keyRef{nil, -1}
 func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 	ret := &inplacePage{
 		offsets:     make([]int, 0),
-		data:        malloc.Malloc(pageSize),
+		data:        malloc.Malloc(inMemoryPageSize),
 		next:        -1,
 		isLeaf:      isLeaf,
 		r:           r,
@@ -116,7 +122,7 @@ func (p *inplacePage) writeKey(offset int, key []byte, ref int) (n int, ok bool)
 	const refSize = 4
 	keyLen := len(key)
 
-	if offset+lenSize+refSize+keyLen > pageSize {
+	if offset+lenSize+refSize+keyLen > inMemoryPageSize {
 		return 0, false
 	}
 
@@ -266,7 +272,7 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 		ref = int(readInt32(p.r.scratchData, offset))
 		offset += 4
 		key = p.r.scratchData[offset : offset+length]
-		if length+p.nextOffset > pageSize/2 {
+		if length+p.nextOffset > inMemoryPageSize/2 {
 			break
 		}
 		//fmt.Println(i, "Copying", offset, key, ref, "left to", p.nextOffset)
@@ -333,7 +339,7 @@ type inplacePager struct {
 }
 
 func newInplacePager() *inplacePager {
-	return &inplacePager{nil, nil, malloc.Malloc(pageSize), make([]int, 32), newEverbuf()}
+	return &inplacePager{nil, nil, malloc.Malloc(inMemoryPageSize), make([]int, 32), newEverbuf()}
 }
 
 func (r *inplacePager) New(isLeaf bool) (ref int, page Page) {
@@ -368,6 +374,7 @@ func (r *inplacePager) Get(ref int) (page Page) {
 
 func (r *inplacePager) Release(ref int) {
 	r.freePages = append(r.freePages, ref)
+	r.pages[ref].Dispose()
 	r.pages[ref] = nil
 }
 
@@ -379,7 +386,7 @@ func (r *inplacePager) Stats() BtreeStats {
 		if p != nil {
 			ret.Finds += p.finds
 			ret.Comparisons += p.comparisons
-			sumFill += float64(p.nextOffset) / float64(pageSize)
+			sumFill += float64(p.nextOffset) / float64(inMemoryPageSize)
 			countFill += 1.0
 			if p.IsLeaf() {
 				ret.NumLeafPages++
@@ -393,7 +400,7 @@ func (r *inplacePager) Stats() BtreeStats {
 				ret.ValueBytes += len(r.values.Get(ref))
 			}
 
-			ret.PageBytes += pageSize
+			ret.PageBytes += inMemoryPageSize
 		}
 	}
 	ret.FillRate = sumFill / countFill

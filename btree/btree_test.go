@@ -230,7 +230,7 @@ func fill(t *testing.T, index indexes.Index) (keys [][]byte) {
 
 	keys = make([][]byte, 0)
 
-	for ; count < int32(30*pageSize/(4+4+4)+5); count++ {
+	for ; count < int32(30*inMemoryPageSize/(4+4+4)+5); count++ {
 		binary.Write(buffer, binary.LittleEndian, count)
 		b := copyBytes(buffer.Bytes())
 		keys = append(keys, b)
