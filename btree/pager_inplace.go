@@ -78,9 +78,6 @@ type inplacePage struct {
 	isLeaf bool
 	r      *inplacePager
 
-	// the last key in the page
-	lastKey []byte
-
 	finds, comparisons int
 }
 
@@ -140,19 +137,12 @@ func (p *inplacePage) writeKey(pos int, key []byte, ref int32) bool {
 	// sorted order.
 	copy(p.pageEntries[pos+1:p.numPageEntries+1], p.pageEntries[pos:p.numPageEntries])
 	p.pageEntries[pos] = entry
-	if pos == len(p.pageEntries)-1 {
-		// we're adding a new right-most key.
-		// save an internal reference to it
-		p.lastKey = p.data[offset : offset+len(key)]
-	}
 	p.numPageEntries++
 
 	return true
 }
 
 func (p *inplacePage) Insert(key []byte, ref int) bool {
-	// TODO optimize for inserting in order
-
 	pos := p.find(key)
 
 	const refSize = 4
@@ -172,6 +162,10 @@ func (p *inplacePage) Insert(key []byte, ref int) bool {
 	}
 
 	return p.writeKey(pos, key, int32(ref))
+}
+
+func (p *inplacePage) PutNext(key []byte, ref int) bool {
+	return p.appendKey(key, int32(ref))
 }
 
 func (p *inplacePage) Search(key []byte) (k Key, ok bool) {
@@ -214,11 +208,8 @@ func (p *inplacePage) GetKey(i int) ([]byte, int) {
 
 // Used in split. Does not need to do binary search, just keep adding
 // to the end.
-func (p *inplacePage) appendKey(key []byte, ref int32) {
-	ok := p.writeKey(p.numPageEntries, key, ref)
-	if !ok {
-		panic("appendKey assumes there will be space")
-	}
+func (p *inplacePage) appendKey(key []byte, ref int32) bool {
+	return p.writeKey(p.numPageEntries, key, ref)
 }
 
 func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
@@ -243,7 +234,9 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 		entry := pageEntries[pos]
 		offset, length := int(entry.offset), int(entry.length)
 		// fmt.Println("Copying", pos, ":", p.r.scratchData[offset:offset+length], "to left page")
-		p.appendKey(p.r.scratchData[offset:offset+length], entry.ref)
+		if !p.appendKey(p.r.scratchData[offset:offset+length], entry.ref) {
+			panic("There had to be space")
+		}
 	}
 
 	// Do right by the middle key
@@ -264,7 +257,9 @@ func (p *inplacePage) Split(newPageRef int, newPage1 Page) (splitKey []byte) {
 		entry := pageEntries[pos]
 		offset, length := int(entry.offset), int(entry.length)
 		//fmt.Println("Copying", pos, ":", p.r.scratchData[offset:offset+length], "to right page")
-		newPage.appendKey(p.r.scratchData[offset:offset+length], entry.ref)
+		if !newPage.appendKey(p.r.scratchData[offset:offset+length], entry.ref) {
+			panic("There had to be space")
+		}
 	}
 
 	return

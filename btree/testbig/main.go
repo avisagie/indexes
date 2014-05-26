@@ -62,6 +62,7 @@ func main() {
 	index := btree.NewInMemoryBtree()
 	buf := &bytes.Buffer{}
 
+	pprof.StartCPUProfile(out)
 	start := time.Now().UnixNano()
 	for count := int64(0); count < N; count++ {
 		binary.Write(buf, binary.LittleEndian, count)
@@ -73,6 +74,8 @@ func main() {
 	end := time.Now().UnixNano()
 	fmt.Println("elapsed: ", (end-start)/1000000, "ms")
 	start = end
+
+	pprof.StopCPUProfile()
 
 	runtime.GC()
 
@@ -89,7 +92,6 @@ func main() {
 	spotCheck(index)
 	runtime.GC()
 
-	pprof.StartCPUProfile(out)
 	start = time.Now().UnixNano()
 	index2 := btree.NewInMemoryBtree().(*btree.Btree)
 	defer index2.Dispose()
@@ -101,8 +103,6 @@ func main() {
 		}
 		index2.PutNext(k, v)
 	}
-
-	pprof.StopCPUProfile()
 
 	if index.Size() != index2.Size() {
 		panic(fmt.Sprint("Sizes differ, ", index.Size, " vs ", index2.Size()))

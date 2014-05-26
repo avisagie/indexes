@@ -22,6 +22,11 @@ type Page interface {
 	// after this operation returns.
 	Insert(k []byte, ref int) (ok bool)
 
+	// Like insert, but you promise that you are inserting in
+	// order. This is a special case of Insert. You can always
+	// just call Insert inside PutNext.
+	PutNext(k []byte, ref int) (ok bool)
+
 	// Returns true and the key if it is found. Returns false and
 	// one key smaller if not found so that btree can use its
 	// reference to figure out in which child page it belongs...

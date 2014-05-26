@@ -329,7 +329,7 @@ func (b *Btree) PutNext(key, value []byte) {
 	}
 
 	vref := page.InsertValue(value)
-	ok := page.Insert(key, vref)
+	ok := page.PutNext(key, vref)
 	if !ok {
 		b.appendPage(key, vref, pageRefs)
 	}
