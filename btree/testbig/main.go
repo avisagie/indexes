@@ -41,6 +41,7 @@ func spotCheck(index indexes.Index) {
 	}
 	end := time.Now().UnixNano()
 	fmt.Println("Spot check of", spotCheckN, "elements took", (end-start)/1000, "us,", (end-start)/spotCheckN, "ns per lookup.")
+	printStats(index.(*btree.Btree).Stats())
 }
 
 func printStats(stats btree.BtreeStats) {
