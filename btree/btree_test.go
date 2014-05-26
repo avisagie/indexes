@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math/rand"
+	"os"
 	"testing"
 
 	"github.com/avisagie/indexes"
@@ -252,10 +253,12 @@ func fill(t *testing.T, index indexes.Index) (keys [][]byte) {
 	//		t.Log(i, len(p.keys), p.keys)
 	//	}
 
+	index.(*Btree).Dump(os.Stdout)
+
 	for _, k := range keys {
 		v, ok := index.Get(k)
 		if !ok || bytes.Compare(k, v) != 0 {
-			t.Fatal("Expected", k, "got", v)
+			t.Fatal("Expected", k, "got", v, "ok =", ok)
 		}
 	}
 
