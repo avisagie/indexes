@@ -11,7 +11,7 @@ import (
 const (
 	// This is a good inMemoryPageSize for x64 while building an in-memory
 	// b+tree with small keys.
-	inMemoryPageSize = 1 << 10
+	inMemoryPageSize = 16 << 10
 )
 
 type inplacePageIter struct {
@@ -78,9 +78,6 @@ type inplacePage struct {
 	isLeaf bool
 	r      *inplacePager
 
-	// where are we in the current buffer?
-	nextOffset int
-
 	// the last key in the page
 	lastKey []byte
 
@@ -95,7 +92,6 @@ func newInplacePage(isLeaf bool, r *inplacePager) *inplacePage {
 		next:           -1,
 		isLeaf:         isLeaf,
 		r:              r,
-		nextOffset:     0,
 		finds:          0,
 		comparisons:    0,
 	}
@@ -402,11 +398,12 @@ func (r *inplacePager) Stats() BtreeStats {
 	ret := BtreeStats{}
 	sumFill := 0.0
 	countFill := 0.0
+	pageSize := float64(inMemoryPageSize)
 	for _, p := range r.pages {
 		if p != nil {
 			ret.Finds += p.finds
 			ret.Comparisons += p.comparisons
-			sumFill += float64(p.nextOffset) / float64(inMemoryPageSize)
+			sumFill += (pageSize - float64(p.bottom-pageEntrySize*p.numPageEntries)) / pageSize
 			countFill += 1.0
 			if p.IsLeaf() {
 				ret.NumLeafPages++
