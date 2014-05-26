@@ -23,10 +23,10 @@ func TestInplacePageReadWrite(t *testing.T) {
 func TestInplacePageFind(t *testing.T) {
 	p := newInplacePager()
 	h := newInplacePage(true, p)
-	h.Insert([]byte{0, 0}, 0)
 	h.Insert([]byte{1, 0}, 1)
-	h.Insert([]byte{2}, 2)
 	h.Insert([]byte{2, 0}, 3)
+	h.Insert([]byte{0, 0}, 0)
+	h.Insert([]byte{2}, 2)
 	h.Insert([]byte{3, 0}, 4)
 
 	if !keyLess([]byte{2}, []byte{3}) {
@@ -54,7 +54,6 @@ func TestInplacePageFind(t *testing.T) {
 		t.Log(i, []byte{2}, "<", k, "=", keyLess([]byte{2}, k))
 	}
 
-	t.Log(h.offsets, h.nextOffset)
 	pos := h.find([]byte{2})
 	if pos != 2 {
 		t.Error("find is broken", pos)
@@ -65,7 +64,6 @@ func TestInplacePageSearchEmpty(t *testing.T) {
 	p := newInplacePager()
 	h := newInplacePage(false, p)
 
-	t.Log(h.offsets, h.nextOffset)
 	k, ok := h.Search([]byte{0, 0, 0, 0, 0, 0, 0, 2})
 	t.Log(ok, k)
 	if ok || len(k.Get()) != 0 || k.Ref() != -1 {
@@ -89,7 +87,6 @@ func TestInplacePageSearch(t *testing.T) {
 		if !h.Insert(k.key, k.ref) {
 			t.Fatal("Could not insert")
 		}
-		t.Log(h.offsets, h.nextOffset, inMemoryPageSize)
 	}
 
 	for i := 0; i < h.Size(); i++ {
