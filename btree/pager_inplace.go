@@ -385,7 +385,9 @@ func (r *inplacePager) Stats() BtreeStats {
 	for _, p := range r.pages {
 		if p != nil {
 			ret.Finds += p.finds
+			p.finds = 0
 			ret.Comparisons += p.comparisons
+			p.comparisons = 0
 			sumFill += float64(p.nextOffset) / float64(inMemoryPageSize)
 			countFill += 1.0
 			if p.IsLeaf() {
